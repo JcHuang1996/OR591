@@ -1,0 +1,18 @@
+scenario related data files include:
+
+1) in use - DG only
+    s_fault_line.csv                    --> SCENARIO_LINE_DICT, all scenarios data
+
+2) in use - with line hardening
+    s_fault_w_o_harden.csv              --> TIME_IDX_LIST, TIME_DICT({t_0: nature hour, ...}), all scenarios data
+
+3) in use - for DG only & with line hardening
+    s_load.csv                          --> all scenarios data
+    s_probability.csv                   --> SCENARIO_LIST, subset of s_probability_all_scenario.csv, decide the scenarios input to the model
+
+4) full set backup
+    s_probability_all_scenario.csv
+
+5) for debug use only (for initial DG only debug)
+    scenario_reduced_fault_lines.csv    debug use only
+    scenario_reduced_probability.csv    debug use only
