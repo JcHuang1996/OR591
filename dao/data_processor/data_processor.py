@@ -26,14 +26,38 @@ class DataProcessor:
         # the processed data, ready to be used in later model
         self.data = {}
 
-    def data_process(self):
+    def scenario_time_specific_data_process(self, scenario_list_assigned=None, time_list_assigned=None):
+
+        logger.info(f'Processing data for specific scenarios and times')
+        logger.info(f'Scenarios: {scenario_list_assigned}')
+        logger.info(f'Times: {time_list_assigned}')
+
+        self.scenario_data(scenario_list_assigned=scenario_list_assigned, time_list_assigned=time_list_assigned)
+
+    def data_process(self, scenario_list_assigned=None, time_list_assigned=None):
+
+        logger.info(f'Data processing starts')
+
         self.node_data()
         self.line_data()
         self.node_data()
         self.scenario_data()
         self.parameter_data()
-        self.scenario_data()
+
+        if scenario_list_assigned is not None or time_list_assigned is not None:
+
+            logger.info(f'Processing data for specific scenarios and times')
+            logger.info(f'Scenarios: {scenario_list_assigned}')
+            logger.info(f'Times: {time_list_assigned}')
+            self.scenario_data(scenario_list_assigned=scenario_list_assigned, time_list_assigned=time_list_assigned)
+
+        else:
+            logger.info('Processing data for all scenarios and times')
+            self.scenario_data()
+
         self.logic_process_data()
+
+        logger.info(f'Data processing completed.')
 
         return self.data
 
@@ -301,6 +325,12 @@ class DataProcessor:
 
         df_node = self.raw_data[InputDataName.NODE_DF].copy()
         self.data[DataName.NUM_TOTAL_POWER] = df_node[NodeHeader.P_LOAD].sum()
+
+        # ====================
+        # compute NUM_RATED_POWER_UB, the big-M for DG operation constraints
+        # value: TBD
+        # ====================
+        self.data[DataName.NUM_RATED_POWER_UB] = 1
 
 
 if __name__ == "__main__":

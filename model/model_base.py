@@ -35,6 +35,9 @@ class ModelBase:
         # initialize vars and results dict
         self.var, self.result = {}, {}
 
+        # generate dict to save specific terms of objective functions
+        self.obj_term = {}
+
         # initialize model status
         self.solve_status = ModelStatus.UNSOLVED
 
@@ -81,3 +84,13 @@ class ModelBase:
             logger.info(f'An Unknown model status for relaxed model: {self.model.status}')
             raise
 
+    def get_result(self, var_name_list):
+
+        # todo: check if the var names in the input var name list are valid
+
+        logger.info(f'Get result for following variables: {var_name_list}')
+
+        for var_name in var_name_list:
+            self.result[var_name] = {}
+            for key in sorted(self.var[var_name].keys()):
+                self.result[var_name][key] = self.var[var_name][key].X
