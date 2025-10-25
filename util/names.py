@@ -61,7 +61,8 @@ class DataName:
     DICT_LINE_COST_HARDEN = 'dict_line_cost_harden'     # dict, {(i,j): float, ...}, fixed cost of hardening line (i,j). AFN: C^{H}_{ij}
     DICT_LINE_RESISTANCE = 'dict_line_resistance'       # dict, {(i,j): float, ...}, resistance of line (i,j). AFN: R_{ij}
     DICT_LINE_REACTANCE = 'dict_line_reactance'         # dict, {(i,j): float, ...}, reactance of line (i,j). AFN: X_{ij}
-    DICT_LINE_HEALTHY = 'dict_line_healthy'             # dict, {(i,j,t,s): status_binary, ...}, healthy status of line (i,j) at time t in scenario s. AFN: H_{ijts} column: state_no_harden
+    DICT_LINE_HEALTHY_NH = 'dict_line_healthy_n_harden'    # dict, {(i,j,t,s): status_binary, ...}, healthy status of line (i,j) at time t in scenario s if it was not hardened. AFN: H^{nh}_{ijts} column: state_no_harden
+    DICT_LINE_HEALTHY_H = 'dict_line_healthy_harden'    # dict, {(i,j,t,s): status_binary, ...}, healthy status of line (i,j) at time t in scenario s if it was hardened. AFN: H^{h}_{ijts} column: state_harden
     NUM_VOLTAGE_LB = 'voltage_lb'                       # float, lower bound of bus voltage. AFN: \underline{V} key: v_min
     NUM_VOLTAGE_UB = 'voltage_ub'                       # float, upper bound of bus voltage. AFN: \overline{V} key: v_max
     NUM_VOLTAGE_SLACK = 'voltage_slack'                 # float, slack bus voltage. AFN: V_0 key: v_0
@@ -87,7 +88,7 @@ class DataName:
 
 class VarName:
     # === Main Variables ===
-    SUB_OBJ_VALUE = 'eta'               # Continuous, η_s value of the subproblem objective in scenario s. AFN: \eta_{s}
+    SUB_OBJ_EST = 'eta'               # Continuous, η_s value of the subproblem objective in scenario s. AFN: \eta_{s}
     DG_INSTALL = 'xg'                   # Binary, xg_j indicating whether DG is installed at node j. AFN: x^{G}_{j}
     LINE_HARDEN = 'xl'                  # Binary, xl_ij indicating whether line (i,j) is hardened. AFN: x^{L}_{ij}
     DG_RATED_POWER = 'pgrt'             # Continuous, pgrt_j the rated power capacity of DG at node j. AFN: p^{Grt}_{j}
@@ -153,3 +154,5 @@ class ObjName:
     DG_GENERATING_COST = 'dg_generating_cost'
     LINE_HARDEN_COST = 'line_hard_cost'
     LOAD_SHED_COST = 'load_shed_cost'
+
+    SUB_OBJ_TERM = 'sub_obj_term'

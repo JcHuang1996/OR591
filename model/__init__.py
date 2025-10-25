@@ -5,4 +5,7 @@
 
 
 from .model_combined import ModelCombined
-__all__ = ["ModelCombined"]
+from .model_main import ModelMain
+from .model_sub import ModelSub
+
+__all__ = ["ModelCombined", "ModelMain", "ModelSub"]

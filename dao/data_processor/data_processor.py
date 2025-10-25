@@ -26,6 +26,11 @@ class DataProcessor:
         # the processed data, ready to be used in later model
         self.data = {}
 
+    def clear_existing_data(self):
+
+        # clear the processed data to generate a new data set
+        self.data = {}
+
     def scenario_time_specific_data_process(self, scenario_list_assigned=None, time_list_assigned=None):
 
         logger.info(f'Processing data for specific scenarios and times')
@@ -241,7 +246,7 @@ class DataProcessor:
             df_s_prob[ScenarioProbHeader.SCENARIO_PROB] = \
                     df_s_prob[ScenarioProbHeader.SCENARIO_PROB] / df_s_prob[ScenarioProbHeader.SCENARIO_PROB].sum()
 
-            logger.warning('Warning: Incorrect scenario probability, auto unified')
+            # logger.warning('Warning: Incorrect scenario probability, auto unified')
 
         self.data[DataName.DICT_SC_PROB] = \
             df_s_prob.set_index([ScenarioProbHeader.SCENARIO_ID])[ScenarioProbHeader.SCENARIO_PROB].to_dict()
@@ -249,7 +254,7 @@ class DataProcessor:
         # ========================================
         # process data from s_line_state_w_o_harden.csv:
         # LIST_TIME: the list of all time slot indexes
-        # DICT_LINE_HEALTHY: healthy status of lines in scenarios if no harden. key: (from_bus, to_bus, time_idx, scenario_id), value: state_no_harden
+        # DICT_LINE_HEALTHY_NH: healthy status of lines in scenarios if no harden. key: (from_bus, to_bus, time_idx, scenario_id), value: state_no_harden
         # Note: the data will be filtered by the given list of scenarios and list of time idx that we should consider.
         # If the lists are not given, then the default scenarios to be considered as above,
         # and the default time idx are all time idx given in the .csv.
@@ -266,7 +271,12 @@ class DataProcessor:
                 self.raw_data[InputDataName.SCENARIO_LINE_STATE_WO_HARDEN_DF][ScenarioLineStateHeader.TIME_IDX].isin(self.data[DataName.LIST_TIME])
             ].copy()
 
-        self.data[DataName.DICT_LINE_HEALTHY] = df_s_line_state.set_index(
+        self.data[DataName.DICT_LINE_HEALTHY_H] = df_s_line_state.set_index(
+            [ScenarioLineStateHeader.FROM_NODE, ScenarioLineStateHeader.TO_NODE,
+             ScenarioLineStateHeader.TIME_IDX, ScenarioLineStateHeader.SCENARIO_ID]
+        )[ScenarioLineStateHeader.STATE_HARDEN].to_dict()
+
+        self.data[DataName.DICT_LINE_HEALTHY_NH] = df_s_line_state.set_index(
             [ScenarioLineStateHeader.FROM_NODE, ScenarioLineStateHeader.TO_NODE,
              ScenarioLineStateHeader.TIME_IDX, ScenarioLineStateHeader.SCENARIO_ID]
         )[ScenarioLineStateHeader.STATE_NO_HARDEN].to_dict()

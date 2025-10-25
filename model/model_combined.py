@@ -32,8 +32,8 @@ class ModelCombined(ModelBase):
 
     def add_constraints(self):
         self.add_constr_DG_ub()
-        self.add_constr_DG_operation()
-        self.add_constr_dg_operating()
+        self.add_constr_DG_rated_power_ub()
+        self.add_constr_DG_operating()
         self.add_constr_line_connectivity()
         self.add_constr_system_operating()
         self.add_constr_system_topology_constraints()
@@ -171,7 +171,7 @@ class ModelCombined(ModelBase):
         # y^L_{jts}: Continuous, non-negative (load shed ratio)
         self.var[VarName.LOAD_SHED_RATIO] = {
             (j, t, s): self.model.addVar(
-                vtype=GRB.CONTINUOUS, lb=0,
+                vtype=GRB.CONTINUOUS, lb=0, ub=1,
                 name=f'{VarName.LOAD_SHED_RATIO}_({j},{t},{s})'
             )
             for j in self.data[DataName.LIST_NODE]
@@ -187,7 +187,7 @@ class ModelCombined(ModelBase):
             name=ConstrName.DG_UPPERBOUND
         )
 
-    def add_constr_DG_operation(self):
+    def add_constr_DG_rated_power_ub(self):
         for j in self.data[DataName.LIST_NODE]:
             self.model.addConstr(
                 self.var[VarName.DG_RATED_POWER][j] <= self.data[DataName.NUM_RATED_POWER_UB] * self.var[VarName.DG_INSTALL][j],
@@ -200,8 +200,8 @@ class ModelCombined(ModelBase):
                 for s in self.data[DataName.LIST_SCENARIO]:
                     self.model.addConstr(
                         self.var[VarName.LINE_CONNECTED][i, j, t, s]
-                        <= self.data[DataName.DICT_LINE_HEALTHY][i, j, t, s] * (1 - self.var[VarName.LINE_HARDEN][i, j])
-                        + self.var[VarName.LINE_HARDEN][i, j],
+                        <= self.data[DataName.DICT_LINE_HEALTHY_NH][i, j, t, s] * (1 - self.var[VarName.LINE_HARDEN][i, j])
+                        + self.data[DataName.DICT_LINE_HEALTHY_H][i, j, t, s] * self.var[VarName.LINE_HARDEN][i, j],
                         name=f'{ConstrName.LINE_CONNECTED}_{i}_{j}_{t}_{s}'
                     )
 
@@ -260,7 +260,7 @@ class ModelCombined(ModelBase):
                     name=f'{ConstrName.RADIALITY}_{t}_{s}'
                 )
 
-    def add_constr_dg_operating(self):
+    def add_constr_DG_operating(self):
         # p^G_{jts} <= p^{Grt}_j
         for j in self.data[DataName.LIST_NODE]:
             for t in self.data[DataName.LIST_TIME]:

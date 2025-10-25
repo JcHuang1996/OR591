@@ -6,6 +6,7 @@
 
 from util.headers import *
 from util.names import *
+from util.project_logger import init_logger
 
 from gurobipy import GRB
 import gurobipy as gp
@@ -33,7 +34,7 @@ class ModelBase:
         self.model_relax = None                 # incase that we want to solve the relax model
 
         # initialize vars and results dict
-        self.var, self.result = {}, {}
+        self.var, self.result, self.result_relax = {}, {}, {}
 
         # generate dict to save specific terms of objective functions
         self.obj_term = {}
@@ -42,7 +43,7 @@ class ModelBase:
         self.solve_status = ModelStatus.UNSOLVED
 
     def solve(self):
-        logger.info("Start Solving model")
+        logger.info(f'Optimizing model {self.model_name}')
         self.model.optimize()
 
         if self.model.status == GRB.Status.OPTIMAL:
@@ -71,10 +72,14 @@ class ModelBase:
             raise
 
     def solve_relaxed(self):
+        logger.info(f'Optimizing relaxed model of {self.model_name}')
         self.model_relax = self.model.relax()
         self.model_relax.optimize()
 
-        if self.model_relax.status == GRB.Status.INFEASIBLE:
+        if self.model_relax.status == GRB.Status.OPTIMAL:
+            logger.info("Relaxed Model solved with an optimal solution")
+
+        elif self.model_relax.status == GRB.Status.INFEASIBLE:
             logger.info("Relaxed Model infeasible, IIS available")
 
         elif self.model_relax.status in {GRB.Status.INF_OR_UNBD, GRB.Status.UNBOUNDED}:
@@ -90,7 +95,46 @@ class ModelBase:
 
         logger.info(f'Get result for following variables: {var_name_list}')
 
+        if len(var_name_list) == 0:
+            logger.info('No variable name assigned')
+            raise
+
         for var_name in var_name_list:
             self.result[var_name] = {}
             for key in sorted(self.var[var_name].keys()):
                 self.result[var_name][key] = self.var[var_name][key].X
+
+        return self.result
+
+    def get_result_relaxed(self, var_name_list):
+
+        logger.info(f'Get relaxed result for following variables: {var_name_list}')
+
+        if len(var_name_list) == 0:
+            logger.info('No variable name assigned')
+            raise
+
+        for var_name in var_name_list:
+            self.result_relax[var_name] = {}
+            for key in sorted(self.var[var_name].keys()):
+                var_accurate_name = self.var[var_name][key].VarName
+                self.result_relax[var_name][key] = self.model_relax.getVarByName(var_accurate_name).X
+
+        return self.result_relax
+
+    def reset_model(self):
+        self.model.reset()
+
+    def update_model(self):
+        """
+         Note: the model should be updated before any operations except for solve.
+
+         For example, self.build_model() would add all var, constr, obj, etc.
+         However, if one executed 'solve_relaxed()' right after build the model without updating,
+         then the relaxed model would be empty, as the un-updated model cannot show the added vars, constrs, obj.
+        """
+        self.model.update()
+
+    def clear_result(self):
+        self.result = {}
+

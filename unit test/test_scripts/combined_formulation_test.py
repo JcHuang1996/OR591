@@ -31,7 +31,10 @@ r.read()
 print("CSV read success:")
 
 DataProcessorModule = DataProcessor(r.raw_data)
-processed_data = DataProcessorModule.data_process(scenario_list_assigned=['s_1'], time_list_assigned=[1, 2, 3])
+processed_data = DataProcessorModule.data_process(
+    scenario_list_assigned=['s_1', 's_2', 's_3'],
+    time_list_assigned=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+)
 
 print('Data processing completed.')
 
