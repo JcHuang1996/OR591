@@ -37,7 +37,7 @@ class ModelBase:
         self.var, self.result, self.result_relax = {}, {}, {}
 
         # generate dict to save specific terms of objective functions
-        self.obj_term = {}
+        self.obj_term, self.obj_term_value = {}, {}
 
         # initialize model status
         self.solve_status = ModelStatus.UNSOLVED
@@ -137,4 +137,8 @@ class ModelBase:
 
     def clear_result(self):
         self.result = {}
+
+    def cal_detailed_obj(self):
+        for key, lin_expr in self.obj_term.items():
+            self.obj_term_value[key] = lin_expr.getValue()
 

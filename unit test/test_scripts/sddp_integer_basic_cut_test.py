@@ -45,6 +45,9 @@ main_model_data = DataProcessorModule.data_process(
 )
 DataProcessorModule.clear_existing_data()
 
+# abstract the scenario prob dict, just for convenience
+scenario_prob_dict = main_model_data[DataName.DICT_SC_PROB].copy()
+
 sub_model_data_dict = {}
 for s in scenario_list:
     sub_model_data = DataProcessorModule.data_process(
@@ -57,18 +60,55 @@ for s in scenario_list:
 model_main = ModelMain(model_name='Main', model_data=main_model_data)
 model_main.build_main_model()
 
+# ============================
+# initializing the iteration data
+# ============================
+
+# the dict for collecting information of benders optimality cuts
 bds_cut_cut_info_dict = {}
 
-for ite_num in range(10):
-    model_main.solve()
-    curr_main_result = model_main.get_result([VarName.DG_RATED_POWER, VarName.LINE_HARDEN])
-    logger.info(f'Current main obj: {model_main.model.ObjVal}')
+# the dict for collecting objective values
+ite_obj_value_dict = {}
 
+for ite_num in range(5):
+
+    # the sub-dict collecting results of the current iteration
+    ite_obj_value_dict[ite_num] = {}
     bds_cut_cut_info_dict[ite_num] = {}
+
+    # =======================================================
+    # solve the main model at the beginning of the iteration
+    # =======================================================
+
+    model_main.solve()
+    model_main.cal_detailed_obj()
+
+    # record the result of the main model required by the sub problems
+    curr_main_result = model_main.get_result([VarName.DG_RATED_POWER, VarName.LINE_HARDEN])
+
+    # show and record the main model objective value (the best bound objective value)
+    best_bound_objective_value = model_main.model.ObjVal
+    best_main_stage_objective_value = (
+        model_main.obj_term_value[ObjName.DG_FIXED_COST]
+        + model_main.obj_term_value[ObjName.DG_VARIANT_COST]
+        + model_main.obj_term_value[ObjName.LINE_HARDEN_COST]
+    )
+    ite_obj_value_dict[ite_num]['main_obj(bound)'] = {
+        'total': best_bound_objective_value,
+        'detail': model_main.obj_term_value.copy()
+    }
+    logger.info(f'Current main obj: {best_bound_objective_value}')
+
+    # the best incumbent objective value will be given by the weighted sum of sub-problem objective values
+    # starting from 0
+    best_incumbent_obj_value = 0
 
     # build, solve and collect information from each subproblem corresponding to scenarios
     for s in scenario_list:
 
+        # ============================
+        # build and solve sub problem models
+        # ============================
         # build the sub model for the given scenario in this iteration
         sce_sub_model_data = sub_model_data_dict[s]
         sce_sub_model = ModelSub(
@@ -82,8 +122,18 @@ for ite_num in range(10):
         # in case that following operations (e.g. generating Relaxed Benders Optimality Cuts) requires an updated model
         sce_sub_model.update_model()
 
+        # solve the sub problem model
+        sce_sub_model.solve()
+        sce_sub_model.cal_detailed_obj()
+
+        # collect the scenario's objective value.
+        # Note: the 1st stage objective value is included.
+        sce_obj_value = sce_sub_model.model.ObjVal + best_main_stage_objective_value
+        best_incumbent_obj_value += sce_obj_value * scenario_prob_dict[s]
+        ite_obj_value_dict[ite_num][s] = {'total': sce_obj_value, 'detail': sce_sub_model.obj_term_value.copy()}
+
         # ===========================
-        # Benders optimality cut
+        # generating Benders optimality cut
         # ===========================
         # solve sub model's LP relax for Benders optimality cut
         sce_sub_model.solve_relaxed()
@@ -94,7 +144,16 @@ for ite_num in range(10):
         # record the benders cut info
         bds_cut_cut_info_dict[ite_num][s] = [constant_term, var_coeff_dict]
 
+    # ===============================
+    # summarize the current iteration
+    # ===============================
+    ite_obj_value_dict[ite_num]['sub_obj(best_incumbent)'] = {
+        'sub_p_total': best_incumbent_obj_value
+    }
+
+    # ===============================
     # update the main model
+    # ===============================
 
     # add benders cuts by every scenario
     for s in scenario_list:
