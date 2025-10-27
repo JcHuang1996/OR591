@@ -74,7 +74,7 @@ class ModelMain(ModelCombined):
             GRB.MINIMIZE
         )
 
-    def add_constr_benders_opt_cut(self, scenario_idx=None, constant_term=None, var_coef_dict=None, track_idx=None):
+    def add_constr_benders_opt_cut(self, sub_problem_sce_list=None, constant_term=None, var_coef_dict=None, track_idx=None):
 
         # the form of benders opt cut:
         # \theta_{s} \geq \pi^{T} (b - Ex), where:
@@ -93,13 +93,15 @@ class ModelMain(ModelCombined):
             raise ValueError('Constant term or variable info missing for Benders Opt Cut')
 
         self.model.addConstr(
-            self.var[VarName.SUB_OBJ_EST][scenario_idx] >= constant_term
-            - gp.quicksum(
+            gp.quicksum(
+                self.var[VarName.SUB_OBJ_EST][sce_idx]
+                for sce_idx in sub_problem_sce_list
+            ) >= constant_term - gp.quicksum(
                 self.var[var_class_name][var_key] * var_coef_dict[var_class_name][var_key]
                 for var_class_name in sorted(var_coef_dict.keys())
                 for var_key in sorted(var_coef_dict[var_class_name].keys())
             ),
-            name=f'B_OPT_C_{track_idx}_{scenario_idx}'
+            name=f'B_OPT_C_{track_idx}_{sub_problem_sce_list}'
         )
 
 

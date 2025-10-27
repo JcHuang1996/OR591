@@ -43,8 +43,9 @@ class ModelSub(ModelCombined):
 
         # adding specific components of sub problem model
         self.add_sub_main_common_vars()
-        self.add_sub_constr_DG_operating()
-        self.add_sub_constr_line_connectivity()
+
+        self.add_constr_DG_operating()
+        self.add_constr_line_connectivity()
 
         # set submodel objective
         self.set_sub_objective()
@@ -53,7 +54,7 @@ class ModelSub(ModelCombined):
         """
         The vars added in this section are the variables of main model.
         They should be added as variables, rather than values, so that corresponding columns / coefficients
-        could be got.
+        could be got by gurobi methods.
         """
 
         self.var[VarName.DG_RATED_POWER] = {
@@ -76,38 +77,6 @@ class ModelSub(ModelCombined):
             )
             for (i, j) in self.data[DataName.LIST_LINE]
         }
-
-    def add_sub_constr_DG_operating(self):
-        # p^G_{jts} <= p^{Grt}_j
-        for j in self.data[DataName.LIST_NODE]:
-            for t in self.data[DataName.LIST_TIME]:
-                for s in self.data[DataName.LIST_SCENARIO]:
-                    self.model.addConstr(
-                        self.var[VarName.DG_ACTIVE_POWER][j, t, s] <= self.var[VarName.DG_RATED_POWER][j],
-                        name=f'{ConstrName.DG_ACTIVE_POWER_UB}_{j}_{t}_{s}'
-                    )
-        # q^G_{jts} <= tan(acos(alpha^G_j)) * p^G_{jts}
-        # note: this constraint is not related to the main model result.
-        # adding it here is just for keeping modular in logic
-        for j in self.data[DataName.LIST_NODE]:
-            for t in self.data[DataName.LIST_TIME]:
-                for s in self.data[DataName.LIST_SCENARIO]:
-                    self.model.addConstr(
-                        self.var[VarName.DG_REACTIVE_POWER][j, t, s]
-                        <= self.data[DataName.DICT_DG_ALPHA_UB][j] * self.var[VarName.DG_ACTIVE_POWER][j, t, s],
-                        name=f'{ConstrName.DG_REACTIVE_POWER_UB}_{j}_{t}_{s}'
-                    )
-    
-    def add_sub_constr_line_connectivity(self):
-        for (i, j) in self.data[DataName.LIST_LINE]:
-            for t in self.data[DataName.LIST_TIME]:
-                for s in self.data[DataName.LIST_SCENARIO]:
-                    self.model.addConstr(
-                        self.var[VarName.LINE_CONNECTED][i, j, t, s]
-                        <= self.data[DataName.DICT_LINE_HEALTHY_NH][i, j, t, s] * (1 - self.var[VarName.LINE_HARDEN][i, j])
-                        + self.data[DataName.DICT_LINE_HEALTHY_H][i, j, t, s] * self.var[VarName.LINE_HARDEN][i, j],
-                        name=f'{ConstrName.LINE_CONNECTED}_{i}_{j}_{t}_{s}'
-                    )
 
     def set_sub_objective(self):
 

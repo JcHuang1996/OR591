@@ -133,7 +133,7 @@ for ite_num in range(5):
         # Note: the 1st stage objective value is included.
         sce_obj_value = sce_sub_model.model.ObjVal + best_main_stage_objective_value
         best_incumbent_obj_value += sce_obj_value * scenario_prob_dict[s]
-        ite_obj_value_dict[ite_num][s] = {'total': sce_obj_value, 'detail': sce_sub_model.obj_term_value.copy()}
+        ite_obj_value_dict[ite_num][tuple([s])] = {'total': sce_obj_value, 'detail': sce_sub_model.obj_term_value.copy()}
 
         # ===========================
         # generating Benders optimality cut
@@ -145,7 +145,7 @@ for ite_num in range(5):
         constant_term, var_coeff_dict = sce_sub_model.generate_info_benders_opt_cut()
 
         # record the benders cut info
-        bds_cut_cut_info_dict[ite_num][s] = [constant_term, var_coeff_dict]
+        bds_cut_cut_info_dict[ite_num][tuple([s])] = [constant_term, var_coeff_dict]
 
     # ===============================
     # summarize the current iteration
@@ -161,9 +161,9 @@ for ite_num in range(5):
     # add benders cuts by every scenario
     for s in scenario_list:
         model_main.add_constr_benders_opt_cut(
-            scenario_idx=s,
-            constant_term=bds_cut_cut_info_dict[ite_num][s][0],
-            var_coef_dict=bds_cut_cut_info_dict[ite_num][s][1],
+            sub_problem_sce_list=[s],
+            constant_term=bds_cut_cut_info_dict[ite_num][tuple([s])][0],
+            var_coef_dict=bds_cut_cut_info_dict[ite_num][tuple([s])][1],
             track_idx=f'ite_{ite_num}'
         )
     model_main.reset_model()
