@@ -30,6 +30,8 @@ class ModelSub(ModelCombined):
 
         self.cross_constr_names = []
 
+        self.model.setParam(GRB.Param.OutputFlag, 0)
+
     def build_sub_model(self):
 
         # using existing defining functions from combined model
