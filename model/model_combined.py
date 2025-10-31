@@ -18,13 +18,21 @@ logger = logging.getLogger(__name__)
 
 class ModelCombined(ModelBase):
 
-    def build_model(self):
+    def build_model_all_obj_terms(self):
         self.add_vars()
         self.add_constraints()
-        self.add_objective()
+        self.derive_obj_terms()
+        self.add_all_objective_terms()
+
+    def build_model_given_obj_terms(self, input_term_list):
+        self.add_vars()
+        self.add_constraints()
+        self.derive_obj_terms()
+        self.add_objective_by_terms(term_list=input_term_list)
 
     def add_vars(self):
-        self.add_vars_basic_generator()
+        self.add_vars_basic_generator_bi()
+        self.add_vars_basic_generator_c()
         self.add_vars_basic_line()
         self.add_vars_line_connectivity()
         self.add_vars_sys_operating()
@@ -38,7 +46,7 @@ class ModelCombined(ModelBase):
         self.add_constr_system_operating()
         self.add_constr_system_topology_constraints()
 
-    def add_vars_basic_generator(self):
+    def add_vars_basic_generator_bi(self):
 
         self.var[VarName.DG_INSTALL] = {
             j: self.model.addVar(
@@ -47,6 +55,8 @@ class ModelCombined(ModelBase):
             )
             for j in self.data[DataName.LIST_NODE]
         }
+
+    def add_vars_basic_generator_c(self):
 
         self.var[VarName.DG_RATED_POWER] = {
             j: self.model.addVar(
@@ -434,7 +444,7 @@ class ModelCombined(ModelBase):
                         name=f'{ConstrName.LINE_THERMAL_C3}_R_{i}_{j}_{t}_{s}'
                     )
 
-    def add_objective(self):
+    def derive_obj_terms(self):
 
         self.obj_term[ObjName.DG_FIXED_COST] = gp.quicksum(
             self.data[DataName.DICT_DG_COST_FIX][j] * self.var[VarName.DG_INSTALL][j]
@@ -465,11 +475,20 @@ class ModelCombined(ModelBase):
             for s in self.data[DataName.LIST_SCENARIO]
         )
 
+    def add_all_objective_terms(self):
+
         self.model.setObjective(
-            self.obj_term[ObjName.DG_FIXED_COST]
-            + self.obj_term[ObjName.DG_VARIANT_COST]
-            + self.obj_term[ObjName.DG_GENERATING_COST]
-            + self.obj_term[ObjName.LINE_HARDEN_COST]
-            + self.obj_term[ObjName.LOAD_SHED_COST],
+            gp.quicksum(
+                self.obj_term[obj_term_name] for obj_term_name in sorted(self.obj_term.keys())
+            ),
+            GRB.MINIMIZE
+        )
+
+    def add_objective_by_terms(self, term_list=None):
+
+        self.model.setObjective(
+            gp.quicksum(
+                self.obj_term[obj_term_name] for obj_term_name in term_list
+            ),
             GRB.MINIMIZE
         )

@@ -87,7 +87,7 @@ for ite_num in range(5):
     model_main.cal_detailed_obj()
 
     # record the result of the main model required by the sub problems
-    curr_main_result = model_main.get_result([VarName.DG_RATED_POWER, VarName.LINE_HARDEN])
+    curr_main_result = model_main.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
 
     # show and record the main model objective value (the best bound objective value)
     best_bound_objective_value = model_main.model.ObjVal
@@ -142,7 +142,7 @@ for ite_num in range(5):
         sce_sub_model.solve_relaxed()
 
         # compute the information for generating Benders optimality cut
-        constant_term, var_coeff_dict = sce_sub_model.generate_info_benders_opt_cut()
+        constant_term, var_coeff_dict = sce_sub_model.benders_opt_cut_info_generator()
 
         # record the benders cut info
         bds_cut_cut_info_dict[ite_num][tuple([s])] = [constant_term, var_coeff_dict]
@@ -169,7 +169,7 @@ for ite_num in range(5):
     model_main.reset_model()
 
 model_main.solve()
-curr_main_result = model_main.get_result([VarName.DG_RATED_POWER, VarName.LINE_HARDEN])
+curr_main_result = model_main.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
 
 # ===============================
 # local output CSVs for iteration results (using pandas)

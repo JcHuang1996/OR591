@@ -24,10 +24,10 @@ class ModelMain(ModelCombined):
     def build_main_model(self):
 
         # using existing defining functions from combined model
-        self.add_vars_basic_generator()
+        self.add_vars_basic_generator_bi()
         self.add_vars_basic_line()
         self.add_constr_DG_ub()
-        self.add_constr_DG_rated_power_ub()
+        # self.add_constr_DG_rated_power_ub()
 
         # adding specific components of main model
         self.add_vars_cut()
@@ -51,10 +51,10 @@ class ModelMain(ModelCombined):
             for j in self.data[DataName.LIST_NODE]
         )
 
-        self.obj_term[ObjName.DG_VARIANT_COST] = gp.quicksum(
-            self.data[DataName.DICT_DG_COST_VAR][j] * self.var[VarName.DG_RATED_POWER][j]
-            for j in self.data[DataName.LIST_NODE]
-        )
+        # self.obj_term[ObjName.DG_VARIANT_COST] = gp.quicksum(
+        #     self.data[DataName.DICT_DG_COST_VAR][j] * self.var[VarName.DG_RATED_POWER][j]
+        #     for j in self.data[DataName.LIST_NODE]
+        # )
 
         self.obj_term[ObjName.LINE_HARDEN_COST] = gp.quicksum(
             self.data[DataName.DICT_LINE_COST_HARDEN][i, j] * self.var[VarName.LINE_HARDEN][i, j]
@@ -68,7 +68,7 @@ class ModelMain(ModelCombined):
 
         self.model.setObjective(
             self.obj_term[ObjName.DG_FIXED_COST]
-            + self.obj_term[ObjName.DG_VARIANT_COST]
+            # + self.obj_term[ObjName.DG_VARIANT_COST]
             + self.obj_term[ObjName.LINE_HARDEN_COST]
             + self.obj_term[ObjName.SUB_OBJ_TERM],
             GRB.MINIMIZE
@@ -104,5 +104,34 @@ class ModelMain(ModelCombined):
             name=f'B_OPT_C_{track_idx}_{sub_problem_sce_list}'
         )
 
+    def add_constr_integer_L_shaped_cut(self,
+                                 sub_problem_sce_list,
+                                 sub_model_obj_value,
+                                 sub_model_obj_lb,
+                                 zero_var_idx,
+                                 one_var_idx,
+                                 track_idx,
+                                 ):
 
+        # the form of integer L-shaped cut:
+        # \theta \geq sub_model_obj + sub_model_obj -
 
+        term_regarding_value_zero_index = gp.quicksum(
+            1 - (self.var[var_class_name][var_key])
+            for var_class_name in sorted(one_var_idx.keys())
+            for var_key in sorted(one_var_idx[var_class_name])
+        )
+
+        term_regarding_value_one_index = gp.quicksum(
+            self.var[var_class_name][var_key]
+            for var_class_name in sorted(zero_var_idx.keys())
+            for var_key in sorted(zero_var_idx[var_class_name])
+        )
+
+        self.model.addConstr(
+            gp.quicksum(
+                self.var[VarName.SUB_OBJ_EST][sce_idx] for sce_idx in sub_problem_sce_list
+            ) >= sub_model_obj_value
+            - (sub_model_obj_value - sub_model_obj_lb) * (term_regarding_value_zero_index + term_regarding_value_one_index),
+            name=f'L_OPT_C_{track_idx}_{sub_problem_sce_list}'
+        )

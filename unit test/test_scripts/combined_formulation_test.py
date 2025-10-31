@@ -39,7 +39,7 @@ processed_data = DataProcessorModule.data_process(
 print('Data processing completed.')
 
 m_combined = ModelCombined(model_name='m_combined_test', model_data=processed_data)
-m_combined.build_model()
+m_combined.build_model_all_obj_terms()
 m_combined.solve()
 m_combined.get_result([VarName.DG_INSTALL, VarName.LINE_CONNECTED])
 

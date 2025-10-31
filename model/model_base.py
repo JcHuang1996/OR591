@@ -102,7 +102,10 @@ class ModelBase:
         for var_name in var_name_list:
             self.result[var_name] = {}
             for key in sorted(self.var[var_name].keys()):
-                self.result[var_name][key] = self.var[var_name][key].X
+                var_value = self.var[var_name][key].X
+                if self.var[var_name][key].VType == GRB.BINARY:
+                    var_value = int(var_value)
+                self.result[var_name][key] = var_value
 
         return self.result
 

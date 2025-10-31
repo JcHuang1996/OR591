@@ -35,6 +35,7 @@ class ModelSub(ModelCombined):
     def build_sub_model(self):
 
         # using existing defining functions from combined model
+        self.add_vars_basic_generator_c()
         self.add_vars_line_connectivity()
         self.add_vars_sys_operating()
         self.add_vars_sys_topology()
@@ -44,6 +45,7 @@ class ModelSub(ModelCombined):
         # adding specific components of sub problem model
         self.add_sub_main_common_vars()
 
+        self.add_constr_DG_rated_power_ub()
         self.add_constr_DG_operating()
         self.add_constr_line_connectivity()
 
@@ -57,12 +59,23 @@ class ModelSub(ModelCombined):
         could be got by gurobi methods.
         """
 
-        self.var[VarName.DG_RATED_POWER] = {
+        # self.var[VarName.DG_RATED_POWER] = {
+        #     j: self.model.addVar(
+        #         vtype=GRB.CONTINUOUS,
+        #         lb=self.main_result[VarName.DG_RATED_POWER][j],
+        #         ub=self.main_result[VarName.DG_RATED_POWER][j],
+        #         name=f'{VarName.DG_RATED_POWER}_({j})'
+        #     )
+        #     for j in self.data[DataName.LIST_NODE]
+        # }
+
+        # X^{G}_{j}: Binary
+        self.var[VarName.DG_INSTALL] = {
             j: self.model.addVar(
-                vtype=GRB.CONTINUOUS,
-                lb=self.main_result[VarName.DG_RATED_POWER][j],
-                ub=self.main_result[VarName.DG_RATED_POWER][j],
-                name=f'{VarName.DG_RATED_POWER}_({j})'
+                vtype=GRB.BINARY,
+                lb=self.main_result[VarName.DG_INSTALL][j],
+                ub=self.main_result[VarName.DG_INSTALL][j],
+                name=f'{VarName.DG_INSTALL}_({j})'
             )
             for j in self.data[DataName.LIST_NODE]
         }
@@ -80,6 +93,11 @@ class ModelSub(ModelCombined):
 
     def set_sub_objective(self):
 
+        self.obj_term[ObjName.DG_VARIANT_COST] = gp.quicksum(
+            self.data[DataName.DICT_DG_COST_VAR][j] * self.var[VarName.DG_RATED_POWER][j]
+            for j in self.data[DataName.LIST_NODE]
+        )
+
         self.obj_term[ObjName.DG_GENERATING_COST] = gp.quicksum(
             self.data[DataName.DICT_DG_COST_UNIT][j] * self.var[VarName.DG_ACTIVE_POWER][j, t, s]
             for j in self.data[DataName.LIST_NODE]
@@ -95,14 +113,15 @@ class ModelSub(ModelCombined):
         )
 
         self.model.setObjective(
-            self.obj_term[ObjName.DG_GENERATING_COST]
+            self.obj_term[ObjName.DG_VARIANT_COST]
+            + self.obj_term[ObjName.DG_GENERATING_COST]
             + self.obj_term[ObjName.LOAD_SHED_COST],
             GRB.MINIMIZE
         )
 
-    def generate_info_benders_opt_cut(self):
+    def benders_opt_cut_info_generator(self):
         """
-        After solved the relaxed model, derive the coefficients and constants for generating corresponding benders cut.
+        After solved the RELAXED sub model, derive the coefficients and constants for generating corresponding benders cut.
         :return:
         constant_term: constant term of the benders opt cut (dot product of the dua solution and the RHS);
         var_coeff_dict: coefficients for generating benders opt cut, in the form of:
