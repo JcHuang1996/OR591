@@ -2,6 +2,7 @@
 # @Time     : 2025/10/27
 # @Author   : J. Huang
 # @Email    : jiachenghuang0601@gmail.com
+from typing import Any
 
 from util.headers import *
 from util.names import *
@@ -9,6 +10,7 @@ from util.project_logger import init_logger
 from dao.data_reader import DataReader
 from dao.data_processor import DataProcessor
 from model import ModelMain, ModelSub, ModelCombined
+from algo.algo_simple_tools import *
 
 import numpy as np
 import pandas as pd
@@ -196,7 +198,7 @@ class SDDiP_planning():
             track_idx=f'i_{ite_name}_'
         )
 
-    def sub_model_lb_estimator(self, sub_model_sce_list: list = None) -> float:
+    def sub_model_lb_estimator(self, sub_model_sce_list: list = None) -> tuple[Any, Any]:
 
         # process corresponding data set
         sub_model_data = self.data_processor_module.data_process(
@@ -213,6 +215,111 @@ class SDDiP_planning():
             ObjName.LOAD_SHED_COST
         ])
         model_est.solve()
+
+        # record and return main result for future warm starting
+        est_main_result = model_est.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
         
-        return model_est.model.ObjVal
+        return model_est.model.ObjVal, est_main_result
+
+    def execute_single_iteration(self, iteration_name=None, est_sub_lb_dict=None, given_main_result=None):
+
+        ite_name = iteration_name
+
+        # =======================================================
+        # solve the main model and set main result at the beginning of the iteration
+        # =======================================================
+        best_main_stage_obj_value = self.solve_and_record_main_stage_model(ite_name=ite_name)
+
+        if given_main_result is None:
+            # record the result of the main model required by the sub problems
+            curr_main_result = self.model_main.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
+
+        else:
+            curr_main_result = given_main_result
+
+        # prepare the data for L-shaped cuts
+        curr_main_result_zero_idx, curr_main_result_one_idx = bi_var_counter(curr_main_result)
+
+        # the best incumbent objective value will be given by the weighted sum of sub-problem objective values
+        # starting from 0
+        best_incumbent_obj_value = 0
+
+        # ============================
+        # using the current main result, iterating scenarios
+        # ============================
+
+        # decide how to group and iterate the scenarios
+        sce_group_list = [
+            [s] for s in self.scenario_list
+        ]
+
+        # iterating by the above division
+        for sub_sce_list in sce_group_list:
+            # ============================
+            # build and solve the corresponding sub problem model
+            # ============================
+
+            # build the sub model
+            curr_sub_model = self.build_sub_model(
+                sub_model_sce_list=sub_sce_list,
+                given_main_result=curr_main_result
+            )
+
+            # solve the sub model and update the objective record, including the detailed record in the algo module
+            sub_obj_value_w_main = self.solve_and_record_sub_model(
+                sub_model_sce_list=sub_sce_list,
+                sub_model=curr_sub_model,
+                main_stage_obj_value=best_main_stage_obj_value,
+                ite_name=ite_name
+            )
+            best_incumbent_obj_value += sub_obj_value_w_main * sum(
+                self.sce_prob_dict[s_idx]
+                for s_idx in sub_sce_list
+            )
+
+            # ===========================
+            # generating Benders optimality cut
+            # ===========================
+            self.generate_benders_opt_cut(
+                sub_model=curr_sub_model,
+                sub_model_sce_list=sub_sce_list,
+                ite_name=ite_name
+            )
+
+            # ==========================
+            # collecting L-shaped cut info
+            # ==========================
+            self.collect_L_cut_info(
+                sub_model_sce_list=sub_sce_list,
+                ite_name=ite_name,
+                obj_lb=est_sub_lb_dict[sub_sce_list[0]],
+                obj_value=curr_sub_model.model.ObjVal,
+                zero_var_idx=curr_main_result_zero_idx,
+                one_var_idx=curr_main_result_one_idx
+            )
+
+        # ===============================
+        # Operations after the solving process
+        # ===============================
+
+        # summarize the current iteration record
+        self.ite_obj_value_dict[ite_name]['sub_obj(best_incumbent)'] = {
+            'sub_p_total': best_incumbent_obj_value
+        }
+
+        # update the main model:
+
+        # adding benders cuts from all scenarios
+        for sub_sce_list in sce_group_list:
+            self.add_benders_cut(
+                sub_model_sce_list=sub_sce_list,
+                ite_name=ite_name
+            )
+
+        # adding integer L-shaped cut
+        for sub_sce_list in sce_group_list:
+            self.add_integer_L_shaped_cut(
+                sub_model_sce_list=sub_sce_list,
+                ite_name=ite_name
+            )
 

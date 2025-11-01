@@ -56,111 +56,40 @@ SDDiP_module = SDDiP_planning(raw_data=r.raw_data, scenario_list=scenario_list, 
 # estimate the obj value lb for every scenario
 # =========================================
 obj_lb_dict = {}
+single_s_optimal_main_result_dict = {}
 for s in scenario_list:
-    obj_lb_dict[s] = SDDiP_module.sub_model_lb_estimator(sub_model_sce_list=[s])
+    obj_lb_dict[s], single_s_optimal_main_result_dict[s] = SDDiP_module.sub_model_lb_estimator(sub_model_sce_list=[s])
 
 # build the main model
 SDDiP_module.build_main_stage_model()
 
-for ite_num in range(100):
+# =========================================
+# user-iteration
+# cut generation are based on given main results
+# =========================================
+
+for s in sorted(single_s_optimal_main_result_dict.keys()):
+    s_main_result = single_s_optimal_main_result_dict[s]
+    ite_name = str('init' + s)
+    SDDiP_module.execute_single_iteration(
+        iteration_name=ite_name,
+        est_sub_lb_dict=obj_lb_dict,
+        given_main_result=s_main_result
+    )
+
+# =========================================
+# free-iteration
+# cut generation are only based on the solved main model
+# =========================================
+
+for ite_num in range(125):
 
     ite_name = str(ite_num)
 
-    # =======================================================
-    # solve the main model at the beginning of the iteration
-    # =======================================================
-    best_main_stage_obj_value = SDDiP_module.solve_and_record_main_stage_model(ite_name=ite_name)
-
-    # record the result of the main model required by the sub problems
-    curr_main_result = SDDiP_module.model_main.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
-
-    # prepare the data for L-shaped cuts
-    curr_main_result_zero_idx, curr_main_result_one_idx = bi_var_counter(curr_main_result)
-
-    # the best incumbent objective value will be given by the weighted sum of sub-problem objective values
-    # starting from 0
-    best_incumbent_obj_value = 0
-
-    # ============================
-    # using the current main result, iterating scenarios
-    # ============================
-
-    # decide how to group and iterate the scenarios
-    sce_group_list = [
-        [s] for s in scenario_list
-    ]
-
-    # iterating by the above division
-    for sub_sce_list in sce_group_list:
-
-        # ============================
-        # build and solve the corresponding sub problem model
-        # ============================
-
-        # build the sub model
-        curr_sub_model = SDDiP_module.build_sub_model(
-            sub_model_sce_list=sub_sce_list,
-            given_main_result = curr_main_result
-        )
-
-        # solve the sub model and update the objective record, including the detailed record in the algo module
-        sub_obj_value_w_main = SDDiP_module.solve_and_record_sub_model(
-            sub_model_sce_list=sub_sce_list,
-            sub_model=curr_sub_model,
-            main_stage_obj_value=best_main_stage_obj_value,
-            ite_name=ite_name
-        )
-        best_incumbent_obj_value += sub_obj_value_w_main * sum(
-            SDDiP_module.sce_prob_dict[s_idx]
-            for s_idx in sub_sce_list
-        )
-
-        # ===========================
-        # generating Benders optimality cut
-        # ===========================
-        SDDiP_module.generate_benders_opt_cut(
-            sub_model=curr_sub_model,
-            sub_model_sce_list=sub_sce_list,
-            ite_name=ite_name
-        )
-
-        # ==========================
-        # collecting L-shaped cut info
-        # ==========================
-        SDDiP_module.collect_L_cut_info(
-            sub_model_sce_list=sub_sce_list,
-            ite_name=ite_name,
-            obj_lb=obj_lb_dict[sub_sce_list[0]],
-            obj_value=curr_sub_model.model.ObjVal,
-            zero_var_idx=curr_main_result_zero_idx,
-            one_var_idx=curr_main_result_one_idx
-        )
-
-
-    # ===============================
-    # Operations after the solving process
-    # ===============================
-
-    # summarize the current iteration record
-    SDDiP_module.ite_obj_value_dict[ite_name]['sub_obj(best_incumbent)'] = {
-        'sub_p_total': best_incumbent_obj_value
-    }
-
-    # update the main model:
-
-    # adding benders cuts from all scenarios
-    for sub_sce_list in sce_group_list:
-        SDDiP_module.add_benders_cut(
-            sub_model_sce_list=sub_sce_list,
-            ite_name=ite_name
-        )
-
-    # adding integer L-shaped cut
-    for sub_sce_list in sce_group_list:
-        SDDiP_module.add_integer_L_shaped_cut(
-            sub_model_sce_list=sub_sce_list,
-            ite_name=ite_name
-        )
+    SDDiP_module.execute_single_iteration(
+        iteration_name=ite_name,
+        est_sub_lb_dict=obj_lb_dict
+    )
 
 iter_general_csv(
     ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
