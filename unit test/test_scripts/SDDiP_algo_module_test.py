@@ -15,6 +15,7 @@ from dao.data_processor import DataProcessor
 from model import ModelMain, ModelSub, ModelCombined
 from algo.SDDiP import SDDiP_planning
 from algo.algo_simple_tools import *
+from util.virsualization import plot_iter_obj_curves
 
 import numpy as np
 import pandas as pd
@@ -99,6 +100,13 @@ iter_sub_prob_info(
     ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
     output_dir=output_dir,
     scenario_list=scenario_list
+)
+
+# after finishing the algorithm
+plot_iter_obj_curves(
+    ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
+    output_dir=output_dir,
+    real_objective_value=1800000
 )
 
 print('')
