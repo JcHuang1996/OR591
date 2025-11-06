@@ -42,6 +42,9 @@ class ModelBase:
         # initialize model status
         self.solve_status = ModelStatus.UNSOLVED
 
+        # the var lb & ub before they are fixed
+        self.var_record_before_fixed = {}
+
     def solve(self):
         logger.info(f'Optimizing model {self.model_name}')
         self.model.optimize()
@@ -128,7 +131,7 @@ class ModelBase:
     def reset_model(self):
         self.model.reset()
 
-    def update_model(self):
+    def update_the_model(self):
         """
          Note: the model should be updated before any operations except for solve.
 
@@ -144,4 +147,48 @@ class ModelBase:
     def cal_detailed_obj(self):
         for key, lin_expr in self.obj_term.items():
             self.obj_term_value[key] = lin_expr.getValue()
+
+    def fix_variable_value(self, var_fix_info):
+        """
+        The function is for fixing variable values.
+        :param var_fix_info: the dict recording the variable class name, key name and value to fix,
+        having the same structure as self.var
+        """
+        for var_class_name in sorted(var_fix_info.keys()):
+            self.var_record_before_fixed[var_class_name] = {}
+            for var_key in sorted(var_fix_info[var_class_name].keys()):
+
+                # record the ub and lb of variables before they are fixed
+                origin_lb = self.var[var_class_name][var_key].LB
+                origin_ub = self.var[var_class_name][var_key].UB
+                self.var_record_before_fixed[var_class_name][var_key] = (origin_lb, origin_ub)
+
+                # fix the variable's value by changing the lb and ub
+                var_value_fix = var_fix_info[var_class_name][var_key]
+                self.var[var_class_name][var_key].LB = var_value_fix
+                self.var[var_class_name][var_key].UB = var_value_fix
+
+        # update the model after fixed it
+        self.update_the_model()
+
+    def recover_variable_from_fixed(self):
+        """
+        The function is for releasing the variable's fix based on the recording.
+        If there is no recording, it should raise an error.
+        :return:
+        """
+        if len(self.var_record_before_fixed) == 0:
+            raise Exception('No variable fixed info')
+
+        for var_class_name in sorted(self.var_record_before_fixed.keys()):
+            for var_key in sorted(self.var_record_before_fixed[var_class_name].keys()):
+                origin_lb, origin_ub = self.var_record_before_fixed[var_class_name][var_key]
+                self.var[var_class_name][var_key].LB = origin_lb
+                self.var[var_class_name][var_key].UB = origin_ub
+
+        # the record should be clear after the fix is released
+        self.var_record_before_fixed = {}
+
+        # update the model after releasing the fix
+        self.update_the_model()
 

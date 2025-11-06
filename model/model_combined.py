@@ -457,7 +457,9 @@ class ModelCombined(ModelBase):
         )
 
         self.obj_term[ObjName.DG_GENERATING_COST] = gp.quicksum(
-            self.data[DataName.DICT_DG_COST_UNIT][j] * self.var[VarName.DG_ACTIVE_POWER][j, t, s]
+            self.data[DataName.DICT_SC_PROB][s]
+            * self.data[DataName.DICT_DG_COST_UNIT][j]
+            * self.var[VarName.DG_ACTIVE_POWER][j, t, s]
             for j in self.data[DataName.LIST_NODE]
             for t in self.data[DataName.LIST_TIME]
             for s in self.data[DataName.LIST_SCENARIO]
@@ -469,7 +471,9 @@ class ModelCombined(ModelBase):
         )
 
         self.obj_term[ObjName.LOAD_SHED_COST] = gp.quicksum(
-            self.data[DataName.NUM_COST_SHED] * self.var[VarName.LOAD_SHED_RATIO][j, t, s]
+            self.data[DataName.DICT_SC_PROB][s]
+            * self.data[DataName.NUM_COST_SHED]
+            * self.var[VarName.LOAD_SHED_RATIO][j, t, s]
             for j in self.data[DataName.LIST_NODE]
             for t in self.data[DataName.LIST_TIME]
             for s in self.data[DataName.LIST_SCENARIO]

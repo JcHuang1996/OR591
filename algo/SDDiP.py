@@ -123,7 +123,7 @@ class SDDiP_planning():
 
         # update the model immediately,
         # in case that following operations (e.g. generating Relaxed Benders Optimality Cuts) requires an updated model
-        sce_sub_model.update_model()
+        sce_sub_model.update_the_model()
 
         return sce_sub_model
 
@@ -221,21 +221,39 @@ class SDDiP_planning():
         
         return model_est.model.ObjVal, est_main_result
 
-    def execute_single_iteration(self, iteration_name=None, est_sub_lb_dict=None, given_main_result=None):
+    def execute_single_iteration(
+            self,
+            iteration_name=None,
+            est_sub_lb_dict=None,
+            given_main_result=None,
+            if_benders_cut=None,
+            if_l_shaped_cut=None,
+    ):
 
         ite_name = iteration_name
 
         # =======================================================
         # solve the main model and set main result at the beginning of the iteration
         # =======================================================
+
+        if given_main_result is not None:
+
+            # all operation must be done after the model is updated
+            self.model_main.update_the_model()
+
+            self.model_main.fix_variable_value(var_fix_info=given_main_result)
+
         best_main_stage_obj_value = self.solve_and_record_main_stage_model(ite_name=ite_name)
 
-        if given_main_result is None:
-            # record the result of the main model required by the sub problems
-            curr_main_result = self.model_main.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
+        # record the result of the main model required by the sub problems
+        curr_main_result = self.model_main.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
 
-        else:
-            curr_main_result = given_main_result
+        # if given_main_result is None:
+        #     # record the result of the main model required by the sub problems
+        #     curr_main_result = self.model_main.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
+        #
+        # else:
+        #     curr_main_result = given_main_result
 
         # prepare the data for L-shaped cuts
         curr_main_result_zero_idx, curr_main_result_one_idx = bi_var_counter(curr_main_result)
@@ -277,26 +295,28 @@ class SDDiP_planning():
                 for s_idx in sub_sce_list
             )
 
-            # ===========================
-            # generating Benders optimality cut
-            # ===========================
-            self.generate_benders_opt_cut(
-                sub_model=curr_sub_model,
-                sub_model_sce_list=sub_sce_list,
-                ite_name=ite_name
-            )
+            if if_benders_cut == 1:
+                # ===========================
+                # generating Benders optimality cut
+                # ===========================
+                self.generate_benders_opt_cut(
+                    sub_model=curr_sub_model,
+                    sub_model_sce_list=sub_sce_list,
+                    ite_name=ite_name
+                )
 
-            # ==========================
-            # collecting L-shaped cut info
-            # ==========================
-            self.collect_L_cut_info(
-                sub_model_sce_list=sub_sce_list,
-                ite_name=ite_name,
-                obj_lb=est_sub_lb_dict[sub_sce_list[0]],
-                obj_value=curr_sub_model.model.ObjVal,
-                zero_var_idx=curr_main_result_zero_idx,
-                one_var_idx=curr_main_result_one_idx
-            )
+            if if_l_shaped_cut == 1:
+                # ==========================
+                # collecting L-shaped cut info
+                # ==========================
+                self.collect_L_cut_info(
+                    sub_model_sce_list=sub_sce_list,
+                    ite_name=ite_name,
+                    obj_lb=est_sub_lb_dict[sub_sce_list[0]],
+                    obj_value=curr_sub_model.model.ObjVal,
+                    zero_var_idx=curr_main_result_zero_idx,
+                    one_var_idx=curr_main_result_one_idx
+                )
 
         # ===============================
         # Operations after the solving process
@@ -310,16 +330,22 @@ class SDDiP_planning():
         # update the main model:
 
         # adding benders cuts from all scenarios
-        for sub_sce_list in sce_group_list:
-            self.add_benders_cut(
-                sub_model_sce_list=sub_sce_list,
-                ite_name=ite_name
-            )
+        if if_benders_cut == 1:
+            for sub_sce_list in sce_group_list:
+                self.add_benders_cut(
+                    sub_model_sce_list=sub_sce_list,
+                    ite_name=ite_name
+                )
 
         # adding integer L-shaped cut
-        for sub_sce_list in sce_group_list:
-            self.add_integer_L_shaped_cut(
-                sub_model_sce_list=sub_sce_list,
-                ite_name=ite_name
-            )
+        if if_l_shaped_cut == 1:
+            for sub_sce_list in sce_group_list:
+                self.add_integer_L_shaped_cut(
+                    sub_model_sce_list=sub_sce_list,
+                    ite_name=ite_name
+                )
+
+        # release the fix of the main model (if there is)
+        if given_main_result is not None:
+            self.model_main.recover_variable_from_fixed()
 

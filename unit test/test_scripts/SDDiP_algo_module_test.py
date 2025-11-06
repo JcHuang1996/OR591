@@ -29,7 +29,18 @@ ENABLE_LOG_OUTPUT = False  # set to 'False' to disable log file creation
 
 init_logger(enable_file_output=ENABLE_LOG_OUTPUT)
 
-scenario_list = ['s_1', 's_2', 's_3']
+scenario_list = [
+    's_1',
+    's_2',
+    's_3',
+    # 's_4',
+    # 's_5',
+    # 's_6',
+    # 's_7',
+    # 's_8',
+    # 's_9',
+    # 's_10'
+]
 time_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 logger = logging.getLogger(__name__)
@@ -75,7 +86,9 @@ for s in sorted(single_s_optimal_main_result_dict.keys()):
     SDDiP_module.execute_single_iteration(
         iteration_name=ite_name,
         est_sub_lb_dict=obj_lb_dict,
-        given_main_result=s_main_result
+        given_main_result=s_main_result,
+        if_benders_cut=1,
+        if_l_shaped_cut=0
     )
 
 # =========================================
@@ -83,13 +96,15 @@ for s in sorted(single_s_optimal_main_result_dict.keys()):
 # cut generation are only based on the solved main model
 # =========================================
 
-for ite_num in range(125):
+for ite_num in range(5):
 
     ite_name = str(ite_num)
 
     SDDiP_module.execute_single_iteration(
         iteration_name=ite_name,
-        est_sub_lb_dict=obj_lb_dict
+        est_sub_lb_dict=obj_lb_dict,
+        if_benders_cut=1,
+        if_l_shaped_cut=0
     )
 
 iter_general_csv(
@@ -106,7 +121,7 @@ iter_sub_prob_info(
 plot_iter_obj_curves(
     ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
     output_dir=output_dir,
-    real_objective_value=1800000
+    real_objective_value=1795000
 )
 
 print('')

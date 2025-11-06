@@ -32,7 +32,18 @@ print("CSV read success:")
 
 DataProcessorModule = DataProcessor(r.raw_data)
 processed_data = DataProcessorModule.data_process(
-    scenario_list_assigned=['s_1', 's_2', 's_3'],
+    scenario_list_assigned=[
+        's_1',
+        's_2',
+        's_3',
+        's_4',
+        's_5',
+        # 's_6',
+        # 's_7',
+        # 's_8',
+        # 's_9',
+        # 's_10'
+    ],
     time_list_assigned=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 )
 

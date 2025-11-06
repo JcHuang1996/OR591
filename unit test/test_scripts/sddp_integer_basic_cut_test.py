@@ -123,7 +123,7 @@ for ite_num in range(5):
 
         # update the model immediately,
         # in case that following operations (e.g. generating Relaxed Benders Optimality Cuts) requires an updated model
-        sce_sub_model.update_model()
+        sce_sub_model.update_the_model()
 
         # solve the sub problem model
         sce_sub_model.solve()
