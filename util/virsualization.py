@@ -6,6 +6,7 @@
 
 import os
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def plot_iter_obj_curves(ite_obj_value_dict, output_dir=None, real_objective_value: float = None):
     """
@@ -51,7 +52,7 @@ def plot_iter_obj_curves(ite_obj_value_dict, output_dir=None, real_objective_val
 
     # --- Plot ---
     plt.figure(figsize=(8, 5))
-    plt.plot(ite_nums, incumbent_vals, marker='.', markersize=4, label='Best Incumbent Objective')
+    plt.plot(ite_nums, pd.Series(incumbent_vals).interpolate().tolist(), marker='.', markersize=4, label='Best Incumbent Objective')
     plt.plot(ite_nums, bound_vals, marker='.', markersize=4, label='Best Bound Objective')
 
     if real_objective_value is not None:

@@ -187,7 +187,7 @@ class SDDiP_planning():
         )
         self.model_main.reset_model()
 
-    def add_integer_L_shaped_cut(self, sub_model_sce_list=None, ite_name=None):
+    def add_integer_L_shaped_cut(self, sub_model_sce_list=None, ite_name=None, enforce_constant=None):
         sub_model_key = tuple(sub_model_sce_list)
         self.model_main.add_constr_integer_L_shaped_cut(
             sub_problem_sce_list=sub_model_sce_list,
@@ -195,10 +195,63 @@ class SDDiP_planning():
             sub_model_obj_lb=self.L_cut_info_dict[ite_name][sub_model_key]['sub_obj_lb'],
             zero_var_idx=self.L_cut_info_dict[ite_name][sub_model_key]['zero_var_idx'],
             one_var_idx=self.L_cut_info_dict[ite_name][sub_model_key]['one_var_idx'],
-            track_idx=f'i_{ite_name}_'
+            track_idx=f'i_{ite_name}_',
+            enforce_constant=enforce_constant
         )
 
-    def sub_model_lb_estimator(self, sub_model_sce_list: list = None) -> tuple[Any, Any]:
+    def big_M_estimator(self, sub_model_sce_list=None):
+        sub_model_data = self.data_processor_module.data_process(
+            scenario_list_assigned=sub_model_sce_list,
+            time_list_assigned=self.time_list
+        )
+        self.data_processor_module.clear_existing_data()
+
+        model_est = ModelCombined(model_name='m_est', model_data=sub_model_data)
+
+        model_est.build_model_all_obj_terms()
+        model_est.solve()
+        model_result = model_est.get_result(
+            var_name_list=[
+                VarName.DG_RATED_POWER,
+                VarName.DG_INSTALL,
+                VarName.LINE_CONNECTED,
+                VarName.BUS_VOLTAGE,
+                VarName.LINE_ACTIVE_FLOW,
+                VarName.LINE_REACTIVE_FLOW
+            ]
+        )
+
+        V_FLOW_M_EST = 0
+
+        for (i, j) in sub_model_data[DataName.LIST_LINE]:
+            for t in sub_model_data[DataName.LIST_TIME]:
+                for s in sub_model_data[DataName.LIST_SCENARIO]:
+
+                    if model_result[VarName.LINE_CONNECTED][i, j, t, s] > 0.5:
+                        continue
+
+                    v_drop_on_ij = (
+                            sub_model_data[DataName.DICT_LINE_RESISTANCE][i, j] * model_result[VarName.LINE_ACTIVE_FLOW][i, j, t, s]
+                            + sub_model_data[DataName.DICT_LINE_REACTANCE][i, j] * model_result[VarName.LINE_REACTIVE_FLOW][i, j, t, s]
+                    )
+
+                    body_terms = (
+                            model_result[VarName.BUS_VOLTAGE][i, t, s]
+                            - model_result[VarName.BUS_VOLTAGE][j, t, s]
+                            - v_drop_on_ij / sub_model_data[DataName.NUM_VOLTAGE_SLACK]
+                    )
+
+                    V_FLOW_M_EST = max(V_FLOW_M_EST, abs(body_terms))
+
+        R_POWER_M_EST = 0
+        for j in sub_model_data[DataName.LIST_NODE]:
+            if model_result[VarName.DG_INSTALL][j] > 0.5:
+                R_POWER_M_EST = max(R_POWER_M_EST, model_result[VarName.DG_RATED_POWER][j])
+
+        return R_POWER_M_EST, V_FLOW_M_EST
+
+
+    def sub_model_lb_estimator(self, strategy=None, sub_model_sce_list: list = None) -> tuple[Any, Any]:
 
         # process corresponding data set
         sub_model_data = self.data_processor_module.data_process(
@@ -209,17 +262,44 @@ class SDDiP_planning():
 
         # build the corresponding sub model for estimating
         model_est = ModelCombined(model_name='m_est', model_data=sub_model_data)
-        model_est.build_model_given_obj_terms([
-            ObjName.DG_VARIANT_COST, 
-            ObjName.DG_GENERATING_COST, 
-            ObjName.LOAD_SHED_COST
-        ])
-        model_est.solve()
+
+        if strategy == 'safe':
+            # obtaining safe but loose bound by only consider sub-model objective.
+            # drawback: possible to add too many DG or harden too many lines
+            model_est.build_model_given_obj_terms([
+                ObjName.DG_VARIANT_COST,
+                ObjName.DG_GENERATING_COST,
+                ObjName.LOAD_SHED_COST
+            ])
+            model_est.solve()
+
+            est_obj_value = model_est.model.ObjVal
+
+        elif strategy == 'aggressive':
+            # obtaining tight but risky bound by consider all objective terms.
+            # drawback: too aggressive
+            model_est.build_model_given_obj_terms([
+                ObjName.DG_FIXED_COST,
+                ObjName.LINE_HARDEN_COST,
+                ObjName.DG_VARIANT_COST,
+                ObjName.DG_GENERATING_COST,
+                ObjName.LOAD_SHED_COST
+            ])
+            model_est.solve()
+
+            model_est.cal_detailed_obj()
+            est_obj_value = sum(
+                model_est.obj_term_value[obj_name]
+                for obj_name in [ObjName.DG_VARIANT_COST, ObjName.DG_GENERATING_COST, ObjName.LOAD_SHED_COST]
+            )
+
+        else:
+            raise ValueError(f'Unknown strategy {strategy}')
 
         # record and return main result for future warm starting
         est_main_result = model_est.get_result([VarName.DG_INSTALL, VarName.LINE_HARDEN])
         
-        return model_est.model.ObjVal, est_main_result
+        return est_obj_value, est_main_result
 
     def execute_single_iteration(
             self,
@@ -228,6 +308,8 @@ class SDDiP_planning():
             given_main_result=None,
             if_benders_cut=None,
             if_l_shaped_cut=None,
+            l_shaped_cut_enforce=None,
+            record_incumbent=None,
     ):
 
         ite_name = iteration_name
@@ -283,17 +365,18 @@ class SDDiP_planning():
                 given_main_result=curr_main_result
             )
 
-            # solve the sub model and update the objective record, including the detailed record in the algo module
-            sub_obj_value_w_main = self.solve_and_record_sub_model(
-                sub_model_sce_list=sub_sce_list,
-                sub_model=curr_sub_model,
-                main_stage_obj_value=best_main_stage_obj_value,
-                ite_name=ite_name
-            )
-            best_incumbent_obj_value += sub_obj_value_w_main * sum(
-                self.sce_prob_dict[s_idx]
-                for s_idx in sub_sce_list
-            )
+            if record_incumbent:
+                # solve the sub model and update the objective record, including the detailed record in the algo module
+                sub_obj_value_w_main = self.solve_and_record_sub_model(
+                    sub_model_sce_list=sub_sce_list,
+                    sub_model=curr_sub_model,
+                    main_stage_obj_value=best_main_stage_obj_value,
+                    ite_name=ite_name
+                )
+                best_incumbent_obj_value += sub_obj_value_w_main * sum(
+                    self.sce_prob_dict[s_idx]
+                    for s_idx in sub_sce_list
+                )
 
             if if_benders_cut == 1:
                 # ===========================
@@ -305,7 +388,7 @@ class SDDiP_planning():
                     ite_name=ite_name
                 )
 
-            if if_l_shaped_cut == 1:
+            if if_l_shaped_cut == 1 and record_incumbent:
                 # ==========================
                 # collecting L-shaped cut info
                 # ==========================
@@ -321,11 +404,11 @@ class SDDiP_planning():
         # ===============================
         # Operations after the solving process
         # ===============================
-
-        # summarize the current iteration record
-        self.ite_obj_value_dict[ite_name]['sub_obj(best_incumbent)'] = {
-            'sub_p_total': best_incumbent_obj_value
-        }
+        if record_incumbent:
+            # summarize the current iteration record
+            self.ite_obj_value_dict[ite_name]['sub_obj(best_incumbent)'] = {
+                'sub_p_total': best_incumbent_obj_value
+            }
 
         # update the main model:
 
@@ -338,11 +421,12 @@ class SDDiP_planning():
                 )
 
         # adding integer L-shaped cut
-        if if_l_shaped_cut == 1:
+        if if_l_shaped_cut == 1 and record_incumbent:
             for sub_sce_list in sce_group_list:
                 self.add_integer_L_shaped_cut(
                     sub_model_sce_list=sub_sce_list,
-                    ite_name=ite_name
+                    ite_name=ite_name,
+                    enforce_constant=l_shaped_cut_enforce
                 )
 
         # release the fix of the main model (if there is)

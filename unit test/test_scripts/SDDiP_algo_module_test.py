@@ -8,7 +8,7 @@ from flask import current_app
 
 from util.headers import *
 from util.names import *
-from util.local_output import *
+from util.tools import *
 from util.project_logger import init_logger
 from dao.data_reader import DataReader
 from dao.data_processor import DataProcessor
@@ -26,6 +26,8 @@ import os
 
 # control whether to write running logs to log output folder
 ENABLE_LOG_OUTPUT = False  # set to 'False' to disable log file creation
+# ENABLE_RESULT_OUTPUT = False
+ENABLE_RESULT_OUTPUT = True
 
 init_logger(enable_file_output=ENABLE_LOG_OUTPUT)
 
@@ -33,9 +35,9 @@ scenario_list = [
     's_1',
     's_2',
     's_3',
-    # 's_4',
-    # 's_5',
-    # 's_6',
+    's_4',
+    's_5',
+    's_6',
     # 's_7',
     # 's_8',
     # 's_9',
@@ -51,7 +53,8 @@ data_set_name = 'function test'
 
 timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
 output_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'output', timestamp)
-os.makedirs(output_dir, exist_ok=True)
+if ENABLE_RESULT_OUTPUT:
+    os.makedirs(output_dir, exist_ok=True)
 
 r = DataReader(
     read_method=test_read_method,
@@ -67,10 +70,23 @@ SDDiP_module = SDDiP_planning(raw_data=r.raw_data, scenario_list=scenario_list, 
 # =========================================
 # estimate the obj value lb for every scenario
 # =========================================
+
+# by solving scenario full formulation
 obj_lb_dict = {}
 single_s_optimal_main_result_dict = {}
 for s in scenario_list:
-    obj_lb_dict[s], single_s_optimal_main_result_dict[s] = SDDiP_module.sub_model_lb_estimator(sub_model_sce_list=[s])
+    obj_lb_dict[s], single_s_optimal_main_result_dict[s] = SDDiP_module.sub_model_lb_estimator(strategy='aggressive', sub_model_sce_list=[s])
+
+# # by solving combined full formulation for aggressive bound
+# obj_lb_real, optimal_main_result = SDDiP_module.sub_model_lb_estimator(strategy='aggressive', sub_model_sce_list=scenario_list)
+#
+# for s in obj_lb_dict.keys():
+#     obj_lb_dict[s] = obj_lb_real * 0.965
+
+# # =========================================
+# # estimate the big-M
+# # =========================================
+# R_POWER_M, V_FLOW_M = SDDiP_module.big_M_estimator(sub_model_sce_list=scenario_list)
 
 # build the main model
 SDDiP_module.build_main_stage_model()
@@ -88,7 +104,24 @@ for s in sorted(single_s_optimal_main_result_dict.keys()):
         est_sub_lb_dict=obj_lb_dict,
         given_main_result=s_main_result,
         if_benders_cut=1,
-        if_l_shaped_cut=0
+        if_l_shaped_cut=0,
+        l_shaped_cut_enforce=0,
+        record_incumbent=False
+    )
+
+# load warm start result
+warm_start_points = load_warm_start('/Users/huangjiacheng/OR591/unit test/test_local_csv_file/function test/warm_start.csv')
+for w_key in sorted(warm_start_points.keys()):
+    w_main_result = warm_start_points[w_key]
+    ite_name = str('init_' + w_key)
+    SDDiP_module.execute_single_iteration(
+        iteration_name=ite_name,
+        est_sub_lb_dict=obj_lb_dict,
+        given_main_result=w_main_result,
+        if_benders_cut=1,
+        if_l_shaped_cut=1,
+        l_shaped_cut_enforce=0,
+        record_incumbent=False
     )
 
 # =========================================
@@ -96,33 +129,54 @@ for s in sorted(single_s_optimal_main_result_dict.keys()):
 # cut generation are only based on the solved main model
 # =========================================
 
-for ite_num in range(5):
+for ite_num in range(200):
 
     ite_name = str(ite_num)
 
-    SDDiP_module.execute_single_iteration(
-        iteration_name=ite_name,
-        est_sub_lb_dict=obj_lb_dict,
-        if_benders_cut=1,
-        if_l_shaped_cut=0
+    if ite_num % 10 == 0:
+        record_this_ite = True
+    else:
+        record_this_ite = False
+
+    if ite_num <= 25:
+        SDDiP_module.execute_single_iteration(
+            iteration_name=ite_name,
+            est_sub_lb_dict=obj_lb_dict,
+            if_benders_cut=1,
+            if_l_shaped_cut=1,
+            record_incumbent=record_this_ite,
+            l_shaped_cut_enforce=4
+        )
+
+    else:
+        SDDiP_module.execute_single_iteration(
+            iteration_name=ite_name,
+            est_sub_lb_dict=obj_lb_dict,
+            if_benders_cut=1,
+            if_l_shaped_cut=int(record_this_ite),
+            record_incumbent=record_this_ite,
+            l_shaped_cut_enforce=0
+        )
+
+
+if ENABLE_RESULT_OUTPUT:
+    iter_general_csv(
+        ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
+        output_dir=output_dir
+    )
+    iter_sub_prob_info(
+        ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
+        output_dir=output_dir,
+        scenario_list=scenario_list
     )
 
-iter_general_csv(
-    ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
-    output_dir=output_dir
-)
-iter_sub_prob_info(
-    ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
-    output_dir=output_dir,
-    scenario_list=scenario_list
-)
-
-# after finishing the algorithm
-plot_iter_obj_curves(
-    ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
-    output_dir=output_dir,
-    real_objective_value=1795000
-)
+    # after finishing the algorithm
+    plot_iter_obj_curves(
+        ite_obj_value_dict=SDDiP_module.ite_obj_value_dict,
+        output_dir=output_dir,
+        real_objective_value=3441951
+        # real_objective_value=1707000
+    )
 
 print('')
 

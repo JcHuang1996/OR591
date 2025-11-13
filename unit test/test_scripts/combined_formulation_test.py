@@ -38,7 +38,7 @@ processed_data = DataProcessorModule.data_process(
         's_3',
         's_4',
         's_5',
-        # 's_6',
+        's_6',
         # 's_7',
         # 's_8',
         # 's_9',

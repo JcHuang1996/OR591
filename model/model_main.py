@@ -96,11 +96,11 @@ class ModelMain(ModelCombined):
             gp.quicksum(
                 self.var[VarName.SUB_OBJ_EST][sce_idx]
                 for sce_idx in sub_problem_sce_list
-            ) >= constant_term - gp.quicksum(
+            ) >= 1.001 * (constant_term - gp.quicksum(
                 self.var[var_class_name][var_key] * var_coef_dict[var_class_name][var_key]
                 for var_class_name in sorted(var_coef_dict.keys())
                 for var_key in sorted(var_coef_dict[var_class_name].keys())
-            ),
+            )),
             name=f'B_OPT_C_{track_idx}_{sub_problem_sce_list}'
         )
 
@@ -111,6 +111,7 @@ class ModelMain(ModelCombined):
                                  zero_var_idx,
                                  one_var_idx,
                                  track_idx,
+                                 enforce_constant
                                  ):
 
         # the form of integer L-shaped cut:
@@ -132,6 +133,6 @@ class ModelMain(ModelCombined):
             gp.quicksum(
                 self.var[VarName.SUB_OBJ_EST][sce_idx] for sce_idx in sub_problem_sce_list
             ) >= sub_model_obj_value
-            - (sub_model_obj_value - sub_model_obj_lb) * (term_regarding_value_zero_index + term_regarding_value_one_index),
+            - (sub_model_obj_value - sub_model_obj_lb) * (term_regarding_value_zero_index + term_regarding_value_one_index - enforce_constant),
             name=f'L_OPT_C_{track_idx}_{sub_problem_sce_list}'
         )

@@ -44,3 +44,18 @@ def iter_sub_prob_info(ite_obj_value_dict=None, output_dir=None, scenario_list=N
     df_sub = pd.DataFrame(sub_records)
     csv_sub_path = os.path.join(output_dir, 'iter_subproblem_info.csv')
     df_sub.to_csv(csv_sub_path, index=False)
+
+
+def load_warm_start(path):
+    df = pd.read_csv(path)
+    out = {}
+    for i, row in df.iterrows():
+        xg = {c: int(row[c]) for c in df.columns if c.startswith("node_") and "-" not in c}
+        xl = {(a, b): int(row[f"{a}-{b}"])
+              for c in df.columns if "-" in c
+              for a, b in [c.split("-")]}
+        out[f"w_{i+1}"] = {
+            "xg": xg,
+            # "xl": xl
+        }
+    return out

@@ -334,13 +334,14 @@ class DataProcessor:
         # ====================
 
         df_node = self.raw_data[InputDataName.NODE_DF].copy()
-        self.data[DataName.NUM_TOTAL_POWER] = df_node[NodeHeader.P_LOAD].sum()
+        # self.data[DataName.NUM_TOTAL_POWER] = df_node[NodeHeader.P_LOAD].sum()
+        self.data[DataName.NUM_TOTAL_POWER] = 1.5
 
         # ====================
         # compute NUM_RATED_POWER_UB, the big-M for DG operation constraints
         # value: TBD
         # ====================
-        self.data[DataName.NUM_RATED_POWER_UB] = 1
+        self.data[DataName.NUM_RATED_POWER_UB] = 1.75
 
 
 if __name__ == "__main__":
