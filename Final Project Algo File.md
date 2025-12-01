@@ -153,6 +153,25 @@ $$
 > - $\hat{x}$: a solution to the main problem
 > - $Q_{s}(\hat{x})$: the sub problem's objective value when given the main problem solution $\hat{x}$
 
+##### Modified Integer L-shaped Cut 1
+
+$$
+\theta_s \ge Q_s(\hat{x}) - \big(Q_s(\hat{x}) - L_s\big)
+\left(
+\sum_{i:\hat{x}_i=1} (1 - x_i)
++ \sum_{i:\hat{x}_i=0} x_i - C
+\right)
+$$
+
+> - C: a constant. When C is larger, the preference toward solution being similar to $\hat{x}$ will be lower.
+> - other notations are the same as Integer L-shaped Cut
+
+##### Modified Integer L-shaped Cut 2
+
+$$
+\theta_s \ge Q_s(x|x_i=1) - \big(Q_s(x|x_i=1) - L_s\big)x_i
+$$
+
 ## Sub-problem Model
 
 ### Variables
