@@ -433,3 +433,39 @@ class SDDiP_planning():
         if given_main_result is not None:
             self.model_main.recover_variable_from_fixed()
 
+    def user_node_decision_estimator(self, sub_model_sce_list: list = None, node_to_est_idx: str = None):
+
+        # process corresponding data set
+        sub_model_data = self.data_processor_module.data_process(
+            scenario_list_assigned=sub_model_sce_list,
+            time_list_assigned=self.time_list
+        )
+        self.data_processor_module.clear_existing_data()
+
+        # only fix the bi-var to be one
+        bi_to_fix_info = {
+            VarName.DG_INSTALL: {node_to_est_idx: 1}
+        }
+
+        # build the corresponding sub model for estimating
+        model_est = ModelCombined(model_name='m_est', model_data=sub_model_data)
+
+        model_est.build_model_given_obj_terms([
+            ObjName.DG_FIXED_COST,
+            ObjName.LINE_HARDEN_COST,
+            ObjName.DG_VARIANT_COST,
+            ObjName.DG_GENERATING_COST,
+            ObjName.LOAD_SHED_COST
+        ])
+
+        model_est.fix_variable_value(var_fix_info=bi_to_fix_info)
+
+        model_est.solve()
+
+        model_est.cal_detailed_obj()
+        est_obj_value = sum(
+            model_est.obj_term_value[obj_name]
+            for obj_name in [ObjName.DG_VARIANT_COST, ObjName.DG_GENERATING_COST, ObjName.LOAD_SHED_COST]
+        )
+
+        return est_obj_value

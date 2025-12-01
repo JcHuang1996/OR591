@@ -87,6 +87,7 @@ for s in scenario_list:
 # # estimate the big-M
 # # =========================================
 # R_POWER_M, V_FLOW_M = SDDiP_module.big_M_estimator(sub_model_sce_list=scenario_list)
+# note: in opt, R_POWER_M = 1.300015592, V_FLOW_M = 1.266
 
 # build the main model
 SDDiP_module.build_main_stage_model()
@@ -124,6 +125,44 @@ for w_key in sorted(warm_start_points.keys()):
         record_incumbent=False
     )
 
+node_to_est_list = [
+    'node_1',
+    'node_2',
+    'node_7',
+    'node_10',
+    'node_11',
+    'node_12',
+    'node_13',
+    'node_14',
+    'node_16',
+    'node_17',
+    'node_18',
+    'node_21',
+    'node_23',
+    'node_24',
+    'node_26',
+    'node_27',
+    'node_28',
+    'node_29',
+    'node_30',
+    'node_31',
+    'node_32',
+    'node_33'
+]
+
+n_obj_list_for_debug = []
+for s in scenario_list:
+    for n_idx in node_to_est_list:
+        n_obj_value = SDDiP_module.user_node_decision_estimator(sub_model_sce_list=[s], node_to_est_idx=n_idx)
+        n_obj_list_for_debug.append(n_obj_value)
+        SDDiP_module.model_main.add_user_cut_node_estimation(
+            sub_problem_sce_list=[s],
+            sub_model_obj_value=n_obj_value,
+            sub_model_obj_lb=obj_lb_dict[s],
+            estimated_node_key=(VarName.DG_INSTALL, n_idx),
+            track_idx=n_idx
+        )
+
 # =========================================
 # free-iteration
 # cut generation are only based on the solved main model
@@ -133,10 +172,15 @@ for ite_num in range(200):
 
     ite_name = str(ite_num)
 
-    if ite_num % 10 == 0:
-        record_this_ite = True
+    # if ite_num % 5 == 0:
+    #     record_this_ite = True
+    # else:
+    #     record_this_ite = False
+
+    if ite_num % 20 == 0:
+        add_integer_l_shaped = 1
     else:
-        record_this_ite = False
+        add_integer_l_shaped = 0
 
     if ite_num <= 25:
         SDDiP_module.execute_single_iteration(
@@ -144,7 +188,7 @@ for ite_num in range(200):
             est_sub_lb_dict=obj_lb_dict,
             if_benders_cut=1,
             if_l_shaped_cut=1,
-            record_incumbent=record_this_ite,
+            record_incumbent=1,
             l_shaped_cut_enforce=4
         )
 
@@ -153,10 +197,19 @@ for ite_num in range(200):
             iteration_name=ite_name,
             est_sub_lb_dict=obj_lb_dict,
             if_benders_cut=1,
-            if_l_shaped_cut=int(record_this_ite),
-            record_incumbent=record_this_ite,
+            if_l_shaped_cut=int(add_integer_l_shaped),
+            record_incumbent=1,
             l_shaped_cut_enforce=0
         )
+
+    # SDDiP_module.execute_single_iteration(
+    #     iteration_name=ite_name,
+    #     est_sub_lb_dict=obj_lb_dict,
+    #     if_benders_cut=1,
+    #     if_l_shaped_cut=add_integer_l_shaped,
+    #     record_incumbent=1,
+    #     l_shaped_cut_enforce=0
+    # )
 
 
 if ENABLE_RESULT_OUTPUT:
@@ -176,6 +229,7 @@ if ENABLE_RESULT_OUTPUT:
         output_dir=output_dir,
         real_objective_value=3441951
         # real_objective_value=1707000
+        # real_objective_value=2910637
     )
 
 print('')

@@ -136,3 +136,23 @@ class ModelMain(ModelCombined):
             - (sub_model_obj_value - sub_model_obj_lb) * (term_regarding_value_zero_index + term_regarding_value_one_index - enforce_constant),
             name=f'L_OPT_C_{track_idx}_{sub_problem_sce_list}'
         )
+
+    def add_user_cut_node_estimation(self,sub_problem_sce_list, sub_model_obj_value, sub_model_obj_lb, estimated_node_key, track_idx):
+        """
+        :param sub_problem_sce_list: be the same as L-shaped cut format
+        :param sub_model_obj_value: be the same as L-shaped cut format
+        :param sub_model_obj_lb: be the same as L-shaped cut format
+        :param estimated_node_key: (var_class_name, var_key)
+        :param track_idx: be the same as L-shaped cut format
+        :return:
+        """
+        # this module add a user-defined special cut to corresponding scenario:
+        # \theta_{s} \leq sub_model_obj - (sub_model_obj - sub_model_lb) * estimated_binary_var
+        # a cut modified from integer L-shaped cut, estimating the effect of letting one binary be / can be one.
+        self.model.addConstr(
+            gp.quicksum(
+                self.var[VarName.SUB_OBJ_EST][sce_idx] for sce_idx in sub_problem_sce_list
+            ) >= sub_model_obj_value
+            - (sub_model_obj_value - sub_model_obj_lb) * self.var[estimated_node_key[0]][estimated_node_key[1]],
+            name=f'U_C_Bi_{track_idx}_{sub_problem_sce_list}'
+        )

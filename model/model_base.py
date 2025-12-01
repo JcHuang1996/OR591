@@ -154,6 +154,9 @@ class ModelBase:
         :param var_fix_info: the dict recording the variable class name, key name and value to fix,
         having the same structure as self.var
         """
+        # update the model before fixing to ensure the model is valid.
+        self.update_the_model()
+
         for var_class_name in sorted(var_fix_info.keys()):
             self.var_record_before_fixed[var_class_name] = {}
             for var_key in sorted(var_fix_info[var_class_name].keys()):
